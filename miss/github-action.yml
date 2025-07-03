@@ -1,0 +1,60 @@
+name: Deploy Cloudflare Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      CLOUDFLARE_API_TOKEN: YOUR_CLOUDFLARE_API_TOKEN
+      CLOUDFLARE_ACCOUNT_ID: YOUR_CLOUDFLARE_ACCOUNT_ID
+      CUSTOM_DOMAIN_SUFFIX: your-domain.com
+      SERVER_PREFIX: loader
+      SERVER_COUNT: 19
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Generate page configurations
+        run: node scripts/generate-pages.js
+
+      - name: Deploy Cloudflare Pages
+        run: |
+          for i in $(seq 1 $SERVER_COUNT); do
+            PROJECT_NAME="${SERVER_PREFIX}${i}"
+            CUSTOM_DOMAIN="${PROJECT_NAME}.${CUSTOM_DOMAIN_SUFFIX}"
+            PAGES_DOMAIN="${PROJECT_NAME}.pages.dev"
+
+            cd "${SERVER_PREFIX}/${PROJECT_NAME}"
+
+            if ! wrangler pages project list | grep -q "$PROJECT_NAME"; then
+              wrangler pages project create "$PROJECT_NAME" --production-branch=main > /dev/null
+              echo "Successfully created the '${PROJECT_NAME}' project. It will be available at https://${PAGES_DOMAIN} once you create your first deployment."
+            fi
+
+            wrangler pages deploy . --project-name="$PROJECT_NAME" --commit-dirty=true > /dev/null
+
+            DOMAIN_EXISTS=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/domains" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | grep -o "$CUSTOM_DOMAIN" | head -1)
+
+            if [ -z "$DOMAIN_EXISTS" ]; then
+              curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT_NAME}/domains" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data '{"name":"'"$CUSTOM_DOMAIN"'"}' > /dev/null
+            fi
+
+            echo "CNAME ${CUSTOM_DOMAIN} -> ${PAGES_DOMAIN}"
+
+            cd ../..
+          done
