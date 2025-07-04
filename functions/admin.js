@@ -467,9 +467,9 @@ function getAdminHTML() {
             margin-right: 10px;
         }
         
-        .btn:hover {
-            background-color: #3367d6;
-        }
+.btn:not(:disabled):hover {
+    background-color: #3367d6;
+}
         
         .btn:disabled {
             background-color: #cccccc;
@@ -480,9 +480,9 @@ function getAdminHTML() {
             background-color: #ea4335;
         }
         
-        .btn-danger:hover {
-            background-color: #d33828;
-        }
+.btn-danger:not(:disabled):hover {
+    background-color: #d33828;
+}
         
         .result {
             margin-top: 20px;
@@ -729,18 +729,25 @@ function getAdminHTML() {
                         '<p><strong>Account ID:</strong> ' + data.fileInfo.account_id + '</p>' +
                         '</div>' +
                         '</div>';
-                    
-                    // Reset form and UI
+
                     urlInput.value = '';
-                    resetUI();
+                    currentFileData = null;
+                    deleteBtn.disabled = true;
+                    renameBtn.disabled = true;
+                    renameForm.style.display = 'none';
+                    fileInfoDisplay.innerHTML = '';
                 } else {
                     resultDiv.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
                 }
             } catch (error) {
                 resultDiv.innerHTML = '<div class="result error">❌ Error: ' + error.message + '</div>';
             } finally {
-                deleteBtn.disabled = false;
                 deleteBtn.textContent = 'Delete File';
+                if (!urlInput.value.trim()) {
+                    deleteBtn.disabled = true;
+                } else {
+                    deleteBtn.disabled = false;
+                }
             }
         });
         
@@ -835,4 +842,4 @@ function getAdminHTML() {
 </body>
 </html>
     `;
-}
+}    
