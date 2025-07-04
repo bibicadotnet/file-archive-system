@@ -35,7 +35,7 @@ This architecture leverages Cloudflare's services to provide a secure, efficient
 
 ## Installing the File Archive System
 
-Download the entire File Archive System source code [here](https://load.bibica.net/file-archive-system.zip)
+Download the entire File Archive System source code [here](https://github.com/bibicadotnet/file-archive-system/archive/refs/tags/v1.0.zip)
 
 - Create a new project on Github, select private mode
 - Extract, upload all files to the project
