@@ -4,7 +4,6 @@
 export async function onRequest(context) {
     const { request, env } = context;
     
-    // Danh sách tài khoản lưu trữ
     const STORAGE_ACCOUNTS = [
         ["YOUR_ACCOUNT_ID_1", "load001", "auto", "YOUR_ACCESS_KEY_1", "YOUR_SECRET_KEY_1", "YOUR_ACCOUNT_ID_1.r2.cloudflarestorage.com", "r2", "YOUR_PUBLIC_ACCOUNT_ID_1"],
         ["YOUR_ACCOUNT_ID_2", "load002", "auto", "YOUR_ACCESS_KEY_2", "YOUR_SECRET_KEY_2", "YOUR_ACCOUNT_ID_2.r2.cloudflarestorage.com", "r2", "YOUR_PUBLIC_ACCOUNT_ID_2"],
@@ -206,51 +205,24 @@ export async function onRequest(context) {
 
 // Trích xuất filename và folder từ URL
 function extractFilename(url) {
-    try {
-        const urlObj = new URL(url);
-        const pathname = urlObj.pathname;
-        
-        // Remove leading slash
-        const path = pathname.startsWith('/') ? pathname.substring(1) : pathname;
-        
-        // Split path into segments
-        const segments = path.split('/');
-        
-        // Last segment is the filename
-        const filename = segments.pop();
-        
-        // If there are remaining segments, join them as the folder path
-        const folder = segments.length > 0 ? segments.join('/') : '';
-        
-        return { filename, folder };
-    } catch (error) {
-        console.error('Error extracting filename from URL:', error);
-        return { filename: null, folder: '' };
-    }
+    const pathOnly = url.replace(/^(https?:\/\/[^\/]+)?\/?/, '');
+    
+    const segments = pathOnly.split('/').filter(Boolean);
+    const filename = segments.pop() || '';
+    const folder = segments.join('/');
+    
+    return { filename, folder };
 }
 
-// Tìm file trong database
+// Tìm file trong database (chính xác theo URL người dùng nhập)
 async function findFileInDatabase(db, filename, folder = '') {
     try {
-        // First try to find the exact match with filename and folder
-        let query = `
+        const query = `
             SELECT id, folder, filename, storage_url, file_size, account_id, upload_time, content_type 
             FROM images 
             WHERE filename = ? AND (folder = ? OR (folder IS NULL AND ? = ''))
         `;
-        let result = await db.prepare(query).bind(filename, folder, folder).first();
-        
-        // If not found and folder is specified, try looking for the file in any folder
-        if (!result && folder) {
-            console.log(`File ${filename} not found in folder ${folder}, searching in all folders`);
-            query = `
-                SELECT id, folder, filename, storage_url, file_size, account_id, upload_time, content_type 
-                FROM images 
-                WHERE filename = ?
-            `;
-            result = await db.prepare(query).bind(filename).first();
-        }
-        
+        const result = await db.prepare(query).bind(filename, folder, folder).first();
         return result;
     } catch (error) {
         console.error('Error finding file in database:', error);
@@ -587,7 +559,9 @@ function getAdminHTML() {
         <form id="fileForm">
             <div class="form-group">
                 <label for="url">File URL:</label>
-                <input type="url" id="url" name="url" placeholder="https://load.bibica.net/filename.ext" required>
+<input type="url" id="url" name="url" 
+       placeholder="http://current-domain/filename.ext or filename.ext, folder/filename.ext" 
+       required>
             </div>
             
             <div id="fileInfoDisplay"></div>
@@ -638,6 +612,11 @@ function getAdminHTML() {
         
         // Check if file exists when URL input changes
         urlInput.addEventListener('input', debounce(checkFileExists, 500));
+
+        document.getElementById('url').placeholder = 
+    document.getElementById('url').placeholder
+    .replace('current-domain', location.hostname);
+
         
         // Debounce function to prevent too many API calls
         function debounce(func, wait) {
@@ -654,11 +633,16 @@ function getAdminHTML() {
         
         // Check if file exists in database
         async function checkFileExists() {
-            const url = urlInput.value.trim();
+            let url = urlInput.value.trim();
             
             if (!url) {
                 resetUI();
                 return;
+            }
+            
+            // If the input is not a full URL, prepend the current domain
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = window.location.origin + '/' + url;
             }
             
             try {
@@ -795,8 +779,14 @@ function getAdminHTML() {
             submitBtn.textContent = 'Renaming...';
             
             try {
+                let url = urlInput.value.trim();
+                // If the input is not a full URL, prepend the current domain
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = window.location.origin + '/' + url;
+                }
+                console.log('Renaming file with URL:', url); // Debugging log
                 const formData = new FormData();
-                formData.append('url', urlInput.value);
+                formData.append('url', url);
                 formData.append('action', 'rename');
                 formData.append('newFilename', newFilenameInput.value);
                 formData.append('newFolder', newFolderInput.value);
@@ -810,7 +800,7 @@ function getAdminHTML() {
                 
                 if (data.success) {
                     // Construct new URL based on the same domain as the original URL
-                    const originalUrl = new URL(urlInput.value);
+                    const originalUrl = new URL(url);
                     const newPath = (data.fileInfo.newFolder ? '/' + data.fileInfo.newFolder : '') + '/' + data.fileInfo.newFilename;
                     const newUrl = originalUrl.origin + newPath;
                     
@@ -834,6 +824,7 @@ function getAdminHTML() {
                     resultDiv.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
                 }
             } catch (error) {
+                console.error('Error during rename operation:', error); // Debugging log
                 resultDiv.innerHTML = '<div class="result error">❌ Error: ' + error.message + '</div>';
             } finally {
                 submitBtn.disabled = false;
