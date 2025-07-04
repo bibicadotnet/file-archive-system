@@ -35,7 +35,7 @@ Kiến trúc này tận dụng các dịch vụ của Cloudflare để cung cấ
 
 ## Cài đặt File Archive System 
 
-Download toàn bộ source code File Archive System tại [đây](https://load.bibica.net/file-archive-system.zip)
+Download toàn bộ source code File Archive System tại [đây](https://github.com/bibicadotnet/file-archive-system/archive/refs/tags/v1.0.zip)
 
 - Tạo 1 dự án mới trên Github, chọn chế độ private
 - Giải nén, upload tất cả file vào dự án
